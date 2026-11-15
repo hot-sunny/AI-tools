@@ -1,0 +1,188 @@
+================================================================================
+>>>[클로드] Python 백엔드 개발을 위한 실용적인 CLAUDE.md 샘플 파일
+--------------------------------------------------------------------------------
+--[url] https://skillsmp.com/
+--[url] https://www.aitmpl.com/
+--------------------------------------------------------------------------------
+
+* 작성 및 활용 팁: 100~150줄 이내 유지
+  1. 간결함 유지: 
+     CLAUDE.md 는 매 세션마다 컨텍스트로 읽히므로 너무 길어지면 토큰을 낭비하고 지시 이행률이 떨어진다.
+     핵심 규칙 위주로 100~150줄 이내를 유지하는 것이 좋다.
+     
+  2. 자동 생성 활용: /init
+     이미 진행 중인 프로젝트라면 터미널에서 Claude Code를 실행한 뒤 /init 명령어를 입력하면
+     현재 프로젝트 구조를 분석해 초안을 자동으로 만들어 준다.
+     
+# CLAUDE.md  -------------------------------------------------------------------
+
+이 파일은 Claude Code(및 AI 코딩 에이전트)가 이 Python 백엔드 저장소에서 작업할 때 참고해야 할 프로젝트 컨텍스트, 아키텍처 규칙, 개발 워크플로우를 정의합니다.
+
+## 1. 기술 스택 및 환경 (Tech Stack)
+- **Language:** Python 3.12+
+- **Framework:** FastAPI (비동기 우선)
+- **Database & ORM:** PostgreSQL 16, SQLAlchemy 2.0 (Async), Alembic (마이그레이션)
+- **Validation:** Pydantic v2
+- **Package Manager:** `uv` (또는 `poetry` / `pip`)
+- **Testing & Linting:** `pytest`, `pytest-asyncio`, `ruff`, `mypy`
+
+## 2. 자주 사용하는 명령어 (Commands)
+코드를 수정한 후에는 반드시 린트, 타입 체크, 테스트를 실행하여 무결성을 검증하세요.
+
+- **의존성 설치:** `uv sync`
+- **로컬 서버 실행:** `uv run uvicorn app.main:app --reload`
+- **전체 테스트 실행:** `uv run pytest`
+- **특정 테스트 실행:** `uv run pytest tests/api/test_users.py -k "test_create_user"`
+- **린트 및 포맷팅:** `uv run ruff check --fix . && uv run ruff format .`
+- **정적 타입 검사:** `uv run mypy app`
+- **DB 마이그레이션 생성:** `uv run alembic revision --autogenerate -m "설명"`
+- **DB 마이그레이션 적용:** `uv run alembic upgrade head`
+
+## 3. 프로젝트 구조 (Directory Structure)
+계층형 아키텍처(Layered Architecture)를 따르며, 각 계층의 책임을 엄격히 분리합니다.
+
+```text
+app/
+├── api/            # 라우터 및 엔드포인트 (HTTP 요청/응답 처리만 담당)
+│   └── v1/
+├── core/           # 설정(config.py), 보안/인증, 공통 예외 처리
+├── db/             # DB 세션 관리, Base 모델
+├── models/         # SQLAlchemy ORM 데이터베이스 모델
+├── schemas/        # Pydantic 요청/응답 DTO 스키마
+├── routers/        # API route handlers, one file per resource
+├── services/       # 핵심 비즈니스 로직 (DB 트랜잭션 조율)
+├── repositories/   # 순수 데이터베이스 쿼리 및 CRUD 로직
+├── dependencies.py   # FastAPI dependency injection (db sessions, auth)
+└── main.py         # FastAPI 앱 초기화 및 미들웨어 등록
+tests/              # app/ 구조와 1:1로 대응하는 테스트 코드
+alembic/            # database migrations  
+
+## 4. 코딩 컨벤션 및 아키텍처 규칙 (Conventions & Rules)
+
+### 계층 분리 원칙
+- **Router (`api/`):** 비즈니스 로직이나 직접적인 DB 쿼리를 작성하지 마세요. 입력 검증 후 `Service` 계층을 호출하고 결과만 반환합니다.
+- **Service (`services/`):** 도메인 규칙과 비즈니스 로직을 처리합니다. 필요 시 여러 `Repository`를 조합합니다.
+- **Repository (`repositories/`):** SQLAlchemy 쿼리 작성만 담당하며, 비즈니스 판단을 포함하지 않습니다.
+
+### 비동기 및 데이터베이스
+- 모든 I/O 작업(DB 쿼리, 외부 API 호출)은 `async/await`를 사용합니다.
+- SQLAlchemy 2.0 스타일(`select()`, `session.execute()`)을 사용하고, 레거시 1.x 스타일(`session.query()`)은 금지합니다.
+- N+1 문제를 방지하기 위해 연관 데이터 조회 시 `selectinload` 또는 `joinedload`를 명시적으로 사용하세요.
+
+### 타입 힌팅 및 에러 처리
+- 모든 함수의 매개변수와 반환값에 타입 힌트(Type Hints)를 작성하세요 (`Any` 사용 지양).
+- 예외 발생 시 표준 `HTTPException` 대신 `app/core/exceptions.py`에 정의된 커스텀 도메인 예외를 발생시키세요.
+- 민감한 정보(비밀번호, API 키, 토큰 등)는 절대 로그에 남기거나 하드코딩하지 마세요.
+
+## 5. Git 및 작업 워크플로우
+- 새로운 기능 추가나 버그 수정 시 반드시 `tests/` 폴더에 단위/통합 테스트를 함께 작성하세요.
+- 커밋 메시지는 Conventional Commits 규칙을 따릅니다 (예: `feat: 사용자 인증 API 추가`, `fix: 토큰 만료 검증 오류 수정`).
+- 기존 API의 응답 스키마를 변경해야 할 경우, 하위 호환성을 먼저 검토하고 변경 사항을 명확히 보고하세요.
+
+
+================================================================================
+>>>[샘플] claude-md-python.md
+--------------------------------------------------------------------------------
+--[url] https://github.com/MuhammadUsmanGM/claude-code-best-practices/blob/main/examples/claude-md-python.md
+--------------------------------------------------------------------------------
+# Project: Inventory API
+
+FastAPI backend service for inventory management. Python 3.12+.
+
+## Setup
+
+- Virtual environment: `source .venv/bin/activate` (always activate before running commands)
+- Install deps: `pip install -e ".[dev]"`
+- Environment variables: copy `.env.example` to `.env` for local development
+
+## Commands
+
+- `pytest` ? run all tests
+- `pytest tests/test_items.py::test_create_item -v` ? run a single test
+- `pytest --cov=src --cov-report=term-missing` ? run tests with coverage
+- `ruff check .` ? lint
+- `ruff format .` ? format code
+- `mypy src/` ? type checking
+- `uvicorn src.main:app --reload` ? start dev server
+
+Run `ruff check . && mypy src/` before committing.
+
+## Project Structure
+
+- `src/` ? application source code
+  - `src/main.py` ? FastAPI app entrypoint and router mounting
+  - `src/models/` ? SQLAlchemy ORM models
+  - `src/schemas/` ? Pydantic request/response schemas
+  - `src/routers/` ? API route handlers, one file per resource
+  - `src/services/` ? business logic layer (routers call services, services call repositories)
+  - `src/repositories/` ? database access layer
+  - `src/dependencies.py` ? FastAPI dependency injection (db sessions, auth)
+- `tests/` ? mirrors src/ structure: `tests/test_routers/`, `tests/test_services/`, etc.
+- `alembic/` ? database migrations
+
+## Coding Conventions
+
+- Type hints on all function signatures ? parameters and return types
+- Use `from __future__ import annotations` at the top of every module
+- Pydantic models for all API input/output ? never pass raw dicts across boundaries
+- Use `pathlib.Path` instead of `os.path`
+- f-strings for string formatting (no .format() or % formatting)
+- Docstrings on public functions using Google style
+
+```python
+def get_item(item_id: int, db: Session) -> Item:
+    """Fetch a single item by ID.
+
+    Args:
+        item_id: The item's primary key.
+        db: Database session.
+
+    Returns:
+        The matching Item.
+
+    Raises:
+        NotFoundError: If no item matches the ID.
+    """
+```
+
+## Testing
+
+- Use pytest with fixtures defined in `conftest.py`
+- Test database: use an in-memory SQLite or test-specific PostgreSQL database ? never touch the dev database
+- Use `httpx.AsyncClient` with `app` for API integration tests
+- Factory fixtures for creating test data (see `tests/factories.py`)
+- Aim for >80% coverage on business logic in `src/services/`
+
+## Database
+
+- SQLAlchemy 2.0 style (use `select()` not `session.query()`)
+- All schema changes go through Alembic migrations ? never modify tables manually
+- New migration: `alembic revision --autogenerate -m "description"`
+- Apply migrations: `alembic upgrade head`
+
+## Error Handling
+
+- Use custom exception classes in `src/exceptions.py`
+- Routers should not catch generic exceptions ? let the global exception handler deal with unexpected errors
+- Service layer raises domain exceptions (NotFoundError, ValidationError, etc.)
+- Never return error details from unhandled exceptions in production responses
+
+## Git
+
+- Conventional commits: feat:, fix:, chore:
+- Run the full check before committing: `ruff check . && ruff format --check . && mypy src/ && pytest`
+
+## Do NOT
+
+- Do not use `import *`
+- Do not use `objects.raw()` or raw SQL ? use the repository layer
+- Do not use `print()` ? use the configured `logging` module
+- Do not use `*` imports
+
+
+================================================================================
+
+
+
+
+
